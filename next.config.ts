@@ -7,8 +7,20 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: "/assets/animate/:file*",
+          has: [{ type: "query", key: "range" }],
+          destination: "/api/framercms/:file*",
+        },
+      ],
+    };
+  },
   outputFileTracingIncludes: {
     "/[[...slug]]": ["./content/**/*"],
+    "/api/framercms/[...file]": ["./public/assets/animate/**/*.framercms"],
   },
 };
 
