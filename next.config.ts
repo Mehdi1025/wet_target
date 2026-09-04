@@ -1,14 +1,14 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // standalone breaks Vercel deploys on Next.js 16.3+ (next-server.js.nft.json)
+  ...(process.env.VERCEL ? {} : { output: "standalone" as const }),
   trailingSlash: false,
   images: {
     unoptimized: true,
   },
-  turbopack: {
-    root: path.join(__dirname),
+  outputFileTracingIncludes: {
+    "/[[...slug]]": ["./content/**/*"],
   },
 };
 
