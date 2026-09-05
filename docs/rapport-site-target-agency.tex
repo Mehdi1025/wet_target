@@ -1,0 +1,531 @@
+\documentclass[11pt,a4paper]{report}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+
+\geometry{margin=2.5cm}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  urlcolor=blue!60!black,
+  pdftitle={Rapport détaillé — Site Target Agency},
+  pdfauthor={Target Agency / Wetarget}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Rapport Target Agency}
+\fancyhead[R]{\small\today}
+\fancyfoot[C]{\thepage}
+
+\title{
+  \vspace{1cm}
+  {\Huge\bfseries Rapport détaillé du site}\\[0.4cm]
+  {\Large Target Agency — Projet \texttt{wetarget}}\\[0.8cm]
+  {\large État des lieux complet à date du 5 septembre 2026}
+}
+\author{Document généré à partir de l'analyse du dépôt de code}
+\date{}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+\newpage
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+\chapter{Résumé exécutif}
+%==============================================================================
+
+Le projet \textbf{wetarget} est une application \textbf{Next.js 16.3.4} hébergeant le site vitrine de \textbf{Target Agency}, agence de marketing digital et de communication. Le site public provient d'un \textbf{export Framer} (NoCodeXport) servi tel quel via une route catch-all. Un \textbf{panneau d'administration} custom (shadcn/ui + Tailwind CSS 4) a été ajouté pour piloter l'agence. Une base \textbf{Supabase} stocke les messages du formulaire de contact.
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{51 pages HTML} exportées dans \texttt{content/}
+  \item \textbf{410 fichiers} d'assets statiques dans \texttt{public/assets/}
+  \item \textbf{5 dashboards} par activité + \textbf{1 vue globale} agence
+  \item \textbf{1 table Supabase} : \texttt{contact\_submissions}
+  \item Stack : React 19, TypeScript 5, Recharts, Radix UI, Jose (JWT admin)
+\end{itemize}
+
+%==============================================================================
+\chapter{Architecture technique}
+%==============================================================================
+
+\section{Stack logicielle}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Composant} & \textbf{Version / détail} \\
+\midrule
+Next.js & 16.3.4 (Turbopack en dev) \\
+React & 19.2.8 \\
+TypeScript & 5.x \\
+Tailwind CSS & 4.3.3 (scopé à l'admin) \\
+Supabase JS & 2.115.0 + @supabase/ssr \\
+Authentification admin & JWT (jose), cookie HTTP-only \\
+Graphiques admin & Recharts 3.10.1 \\
+UI admin & shadcn/ui (Radix + CVA) \\
+\bottomrule
+\end{tabular}
+\caption{Stack principale du projet}
+\end{table}
+
+\section{Structure des dossiers}
+
+\begin{description}[style=nextline, leftmargin=3cm]
+  \item[\texttt{content/}] Pages HTML exportées Framer (site public)
+  \item[\texttt{public/assets/}] Images, polices, vidéos, scripts et CMS Framer
+  \item[\texttt{app/[[...slug]]/}] Route catch-all servant le HTML Framer
+  \item[\texttt{app/admin/}] Panneau d'administration (login + dashboards)
+  \item[\texttt{app/api/framercms/}] API pour requêtes range sur fichiers \texttt{.framercms}
+  \item[\texttt{components/}] Composants React (UI shadcn + admin)
+  \item[\texttt{lib/}] Utilitaires, Supabase, auth admin, config dashboards
+  \item[\texttt{supabase/}] Migration SQL et configuration CLI
+  \item[\texttt{types/}] Types TypeScript générés (base de données)
+\end{description}
+
+\section{Routage et rendu du site public}
+
+Le fichier \texttt{app/[[...slug]]/route.ts} :
+\begin{itemize}[leftmargin=*]
+  \item Résout chaque URL vers un fichier \texttt{content/.../index.html}
+  \item Génère les paramètres statiques via \texttt{generateStaticParams}
+  \item Retourne le HTML brut avec \texttt{Content-Type: text/html}
+  \item En cas d'absence de page : sert \texttt{content/404.html} (si présent)
+\end{itemize}
+
+\textbf{Note :} il n'existe pas de \texttt{content/index.html} à la racine. L'accueil principal en français est accessible via \texttt{/fr}. La route \texttt{/} dépend de la résolution Framer / redirection côté export.
+
+\section{Configuration Next.js (\texttt{next.config.ts})}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{output standalone} : activé hors Vercel (désactivé sur Vercel pour éviter une erreur NFT)
+  \item \textbf{images unoptimized} : true (compatibilité export statique)
+  \item \textbf{Rewrite} : \texttt{/assets/animate/*?range=} $\rightarrow$ API framercms (CMS Framer)
+  \item \textbf{outputFileTracingIncludes} : inclut \texttt{content/**} et fichiers \texttt{.framercms}
+\end{itemize}
+
+\section{Middleware}
+
+Le fichier \texttt{middleware.ts} délègue à \texttt{lib/supabase/middleware.ts} qui :
+\begin{enumerate}[leftmargin=*]
+  \item Protège \texttt{/admin/*} (sauf \texttt{/admin/login}) via session JWT admin
+  \item Redirige les utilisateurs connectés depuis la page login vers \texttt{/admin}
+  \item Rafraîchit la session Supabase Auth (cookies) sur les autres routes
+\end{enumerate}
+
+%==============================================================================
+\chapter{Site public — Target Agency}
+%==============================================================================
+
+\section{Identité et positionnement}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Nom :} Target Agency
+  \item \textbf{Titre SEO :} «~Agence de Marketing digital \& de communication~»
+  \item \textbf{Slogan hero (FR) :} «~Votre image. Notre obsession.~»
+  \item \textbf{Promesse :} Transformer les ambitions en identités de marque fortes, créant confiance et empreinte durable
+  \item \textbf{Fondateur mentionné :} Adam Fisli
+  \item \textbf{Contact affiché :} +33 6 09 88 46 60
+\end{itemize}
+
+\section{Les cinq activités / services}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}p{4.5cm}p{9cm}@{}}
+\toprule
+\textbf{Service} & \textbf{Contenu principal} \\
+\midrule
+Branding \& Identité visuelle &
+Logo, charte graphique, identité de marque, supports de communication \\
+
+Création de sites web &
+UX/UI, design responsive, optimisation UX, mise en ligne et suivi \\
+
+Stratégie digitale \& Réseaux sociaux &
+Stratégie de com, gestion des réseaux, planification, analytics \\
+
+Acquisition \& Publicité &
+Campagnes ads, ciblage, optimisation performances, suivi ROAS \\
+
+Automatisation \& Intelligence artificielle &
+Automatisation processus, connexion d'outils, workflows, optimisation ops \\
+\bottomrule
+\end{tabular}
+\caption{Offre de services telle qu'affichée sur la landing page}
+\end{table}
+
+\section{Forces mises en avant sur le site}
+
+\begin{enumerate}[leftmargin=*]
+  \item Expertise 360° — un seul partenaire pour toute la présence digitale
+  \item Projets livrés clés en main (pas seulement des maquettes)
+  \item De la stratégie à l'exécution (pilotage au quotidien)
+  \item Résultats concrets : visibilité, engagement, conversions
+  \item Collaboration transparente avec jalons et visibilité
+\end{enumerate}
+
+\section{Processus en 4 étapes}
+
+\begin{enumerate}[leftmargin=*]
+  \item Découverte \& Analyse
+  \item Stratégie \& Créativité
+  \item Création \& Développement
+  \item Lancement \& Croissance
+\end{enumerate}
+
+\section{Portfolio — études de cas}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Client / projet} & \textbf{Route EN} & \textbf{Route FR} \\
+\midrule
+Media \& Brokerage By Reign & \texttt{/cases/mb-byreign} & \texttt{/fr/cases/mb-byreign} \\
+Luxkey & \texttt{/cases/luxkey} & \texttt{/fr/cases/luxkey} \\
+Latifa B. & \texttt{/cases/latifa-b} & \texttt{/fr/cases/latifa-b} \\
+Les Gourmandises de Nadj & \texttt{/cases/les-gourmandises-de-nadj} & \texttt{/fr/cases/les-gourmandises-de-nadj} \\
+L'Héritage Français & \texttt{/cases/lheritage-francais} & \texttt{/fr/cases/lheritage-francais} \\
+Liga Del Pueblo & \texttt{/cases/liga-del-pueblo} & \texttt{/fr/cases/liga-del-pueblo} \\
+\bottomrule
+\end{tabular}
+\caption{Études de cas disponibles (versions EN et FR)}
+\end{table}
+
+\section{Blog — articles (12 sujets × 2 langues)}
+
+Thématique dominante : \textbf{systèmes d'IA}, automatisation et workflows en production (contenu hérité du template Framer, orienté tech/IA en anglais).
+
+\begin{longtable}{@{}p{10.5cm}@{}}
+\toprule
+\textbf{Slug de l'article} \\
+\midrule
+\endhead
+\texttt{beyond-the-text-box-engineering-autonomous-workflows-over-agency-free-chat} \\
+\texttt{building-decision-engines-instead-of-chat-interfaces} \\
+\texttt{designing-multi-layer-ai-systems-for-real-world-operations} \\
+\texttt{from-conversation-to-conclusion-why-your-product-needs-outcomes-not-dialogue} \\
+\texttt{from-fragmented-data-to-unified-intelligence-engines} \\
+\texttt{from-manual-bottlenecks-to-autonomous-growth-at-scale} \\
+\texttt{from-prompts-to-pipelines-architecting-intentional-intelligence-over-reactive-replies} \\
+\texttt{from-workflow-chaos-to-structured-automation-pipelines} \\
+\texttt{stop-prompting-start-predicting-transitioning-from-llms-to-logic-layers} \\
+\texttt{the-autonomy-leap-moving-from-conversation-as-interface-to-outcome-as-service} \\
+\texttt{why-most-ai-deployments-fail-in-production-environments} \\
+\bottomrule
+\end{longtable}
+
+Routes : \texttt{/blog/<slug>} et \texttt{/fr/blog/<slug>}
+
+%==============================================================================
+\chapter{Inventaire complet des pages (51 routes)}
+%==============================================================================
+
+\section{Pages principales (anglais)}
+
+\begin{itemize}[leftmargin=*]
+  \item \texttt{/about-us} — À propos
+  \item \texttt{/contacts} — Contact
+  \item \texttt{/career} — Carrières
+  \item \texttt{/blog} — Index blog
+  \item \texttt{/cases} — Index portfolio
+  \item \texttt{/legal} — Mentions légales
+  \item \texttt{/policy} — Politique de confidentialité
+  \item \texttt{/terms} — Conditions générales
+\end{itemize}
+
+\section{Pages principales (français — préfixe \texttt{/fr})}
+
+\begin{itemize}[leftmargin=*]
+  \item \texttt{/fr} — \textbf{Accueil principal (landing page FR)}
+  \item \texttt{/fr/about-us}
+  \item \texttt{/fr/contacts}
+  \item \texttt{/fr/career}
+  \item \texttt{/fr/blog}
+  \item \texttt{/fr/cases}
+  \item \texttt{/fr/legal}
+  \item \texttt{/fr/policy}
+  \item \texttt{/fr/terms}
+\end{itemize}
+
+\section{Total}
+
+\begin{center}
+\textbf{51 fichiers \texttt{index.html}} répartis en pages EN, FR, blog et cas clients.
+\end{center}
+
+%==============================================================================
+\chapter{Assets et export Framer}
+%==============================================================================
+
+\section{Contenu statique}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{410 fichiers} dans \texttt{public/assets/}
+  \item Polices : Inter, Inter Display, Plus Jakarta Sans, JetBrains Mono
+  \item Scripts Framer : modules \texttt{.mjs} dans \texttt{public/assets/animate/}
+  \item Fichiers CMS : \texttt{.framercms} pour contenu dynamique Framer
+  \item Métadonnées SEO : \texttt{public/assets/meta/*.json}
+  \item Images, icônes, vidéos exportées
+\end{itemize}
+
+\section{Particularité technique Framer CMS}
+
+Les requêtes \texttt{GET /assets/animate/*.framercms?range=...} sont réécrites vers \texttt{/api/framercms/[...file]} pour renvoyer uniquement la plage d'octets demandée (compatibilité Vercel / hébergement).
+
+%==============================================================================
+\chapter{Base de données Supabase}
+%==============================================================================
+
+\section{Schéma (\texttt{contact\_submissions})}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llp{6cm}@{}}
+\toprule
+\textbf{Colonne} & \textbf{Type} & \textbf{Description} \\
+\midrule
+\texttt{id} & uuid & Clé primaire (gen\_random\_uuid) \\
+\texttt{full\_name} & text & Nom complet (requis) \\
+\texttt{email} & text & Email (requis) \\
+\texttt{phone} & text & Téléphone (optionnel) \\
+\texttt{company} & text & Entreprise (optionnel) \\
+\texttt{message} & text & Message (requis) \\
+\texttt{source\_page} & text & Page d'origine du formulaire \\
+\texttt{locale} & text & Langue (défaut : \texttt{fr}) \\
+\texttt{status} & text & \texttt{new}, \texttt{read}, \texttt{replied}, \texttt{archived} \\
+\texttt{created\_at} & timestamptz & Date de création \\
+\texttt{updated\_at} & timestamptz & Mise à jour auto (trigger) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Sécurité (RLS)}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{INSERT} : autorisé pour \texttt{anon} et \texttt{authenticated} (formulaire public)
+  \item \textbf{SELECT / UPDATE} : réservé aux utilisateurs \texttt{authenticated}
+  \item L'admin actuel utilise la clé secrète Supabase côté serveur
+\end{itemize}
+
+\section{Clients Supabase dans le code}
+
+\begin{itemize}[leftmargin=*]
+  \item \texttt{lib/supabase/client.ts} — navigateur
+  \item \texttt{lib/supabase/server.ts} — Server Components
+  \item \texttt{lib/supabase/admin.ts} — opérations admin (clé secrète \texttt{sb\_secret\_*})
+  \item \texttt{lib/supabase/health.ts} — test de connexion + comptage contacts
+  \item \texttt{lib/supabase/contacts.ts} — lecture messages + stats conversion
+\end{itemize}
+
+\section{Variables d'environnement}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lp{8cm}@{}}
+\toprule
+\textbf{Variable} & \textbf{Rôle} \\
+\midrule
+\texttt{NEXT\_PUBLIC\_SUPABASE\_URL} & URL du projet Supabase \\
+\texttt{NEXT\_PUBLIC\_SUPABASE\_PUBLISHABLE\_KEY} & Clé publique (anon) \\
+\texttt{SUPABASE\_SECRET\_KEY} & Clé secrète serveur (jamais exposée) \\
+\texttt{ADMIN\_USERS} & Liste \texttt{user:pass} séparés par virgule \\
+\texttt{ADMIN\_SESSION\_SECRET} & Secret JWT admin ($\geq$ 32 caractères) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%==============================================================================
+\chapter{Panneau d'administration (\texttt{/admin})}
+%==============================================================================
+
+\section{Authentification}
+
+\begin{itemize}[leftmargin=*]
+  \item Route login : \texttt{/admin/login}
+  \item Utilisateurs configurés : \texttt{adam} et \texttt{mahdi} (mot de passe via \texttt{.env.local})
+  \item Session : cookie HTTP-only \texttt{admin\_session}, JWT signé HS256 (jose)
+  \item Durée : définie dans \texttt{lib/admin/constants.ts}
+  \item Protection : middleware sur toutes les routes \texttt{/admin/*} sauf login
+\end{itemize}
+
+\section{Interface (design shadcn/ui)}
+
+\begin{itemize}[leftmargin=*]
+  \item Styles : \texttt{app/admin/admin.css} (Tailwind 4, variables CSS shadcn)
+  \item Layout : sidebar + header (recherche, thème) + zone principale
+  \item Composants KPI : cartes avec sparkline corail, bouton Détails, pourcentage vert/rouge
+  \item Graphiques : Recharts (area, bar, line, donut/pie)
+  \item Tableaux : paiements mock, messages contact Supabase, équipe
+\end{itemize}
+
+\section{Vue globale — \texttt{/admin}}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lp{9cm}@{}}
+\toprule
+\textbf{Élément} & \textbf{Détail} \\
+\midrule
+CA total du mois & 108\,250\,€ (données mock) \\
+Projets en cours & 24 (mock) \\
+Leads contact & Données \textbf{réelles} Supabase \\
+Conversion lead $\rightarrow$ client & Calculée : (répondu + archivé) / total \\
+Graphique donut & Branding 30\%, Web 25\%, Social 20\%, Pub 15\%, IA 10\% \\
+Accès rapides & Liens vers les 5 dashboards activité \\
+\bottomrule
+\end{tabular}
+\caption{Vue globale agence}
+\end{table}
+
+\section{Dashboards par activité}
+
+\begin{longtable}{@{}llp{7cm}@{}}
+\toprule
+\textbf{ID} & \textbf{Label} & \textbf{KPI spécifiques (exemples)} \\
+\midrule
+\endhead
+\texttt{branding} & Branding & Projets actifs, identités livrées, satisfaction \\
+\texttt{sites-web} & Sites web & Sites en prod, pages déployées, score perf. \\
+\texttt{reseaux-sociaux} & Réseaux sociaux & Comptes gérés, publications, engagement \\
+\texttt{publicite} & Publicité & Campagnes actives, leads, ROAS \\
+\texttt{automatisation} & Automatisation \& IA & Workflows actifs, heures économisées, outils connectés \\
+\bottomrule
+\caption{Dashboards \texttt{/admin/dashboard/[id]}}
+\end{longtable}
+
+Chaque dashboard contient :
+\begin{itemize}[leftmargin=*]
+  \item 3 cartes KPI + 1 carte revenu avec mini graphique
+  \item Graphique area chart (activité mensuelle)
+  \item Graphique bar chart
+  \item Table facturation (données mock) + messages contact Supabase
+  \item Liste membres équipe (Adam Fisli, Mahdi Benali, Sophie Leroy)
+  \item Onglets : Vue d'ensemble, Analytics, Rapports, Notifications
+\end{itemize}
+
+\section{Composants React admin}
+
+\begin{itemize}[leftmargin=*]
+  \item \texttt{components/admin/admin-shell.tsx} — Sidebar + header
+  \item \texttt{components/admin/agency-overview.tsx} — Vue globale
+  \item \texttt{components/admin/dashboard-overview.tsx} — Dashboard activité
+  \item \texttt{components/admin/kpi-card.tsx} — Carte KPI style SaaS
+  \item \texttt{components/ui/*} — button, card, tabs, input, badge, avatar, etc.
+  \item \texttt{components/ui/hero-195.tsx} — Composant hero marketing (non affiché sur dashboards)
+\end{itemize}
+
+%==============================================================================
+\chapter{API interne}
+%==============================================================================
+
+\section{\texttt{GET /api/framercms/[...file]}}
+
+Route handler pour servir les fichiers \texttt{.framercms} avec support du header/query \texttt{range} (requis par le runtime Framer pour le CMS).
+
+%==============================================================================
+\chapter{Scripts npm}
+%==============================================================================
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lp{9cm}@{}}
+\toprule
+\textbf{Commande} & \textbf{Action} \\
+\midrule
+\texttt{npm run dev} & Serveur de développement (port 3000) \\
+\texttt{npm run build} & Build production (SSG + routes admin dynamiques) \\
+\texttt{npm run start} & Serveur production \\
+\texttt{npm run lint} & ESLint \\
+\texttt{npm run supabase:types} & Génère \texttt{types/database.ts} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%==============================================================================
+\chapter{Limites actuelles et évolutions possibles}
+%==============================================================================
+
+\section{Données mock vs réelles}
+
+\begin{itemize}[leftmargin=*]
+  \item CA, projets, campagnes, paiements : \textbf{données fictives} dans l'admin
+  \item Seuls les \textbf{messages contact Supabase} sont branchés en live
+  \item Le formulaire Framer n'est pas encore connecté à Supabase côté code Next (insertion à implémenter)
+\end{itemize}
+
+\section{Contenu hérité du template}
+
+\begin{itemize}[leftmargin=*]
+  \item Page \texttt{/about-us} : contenu orienté «~AI Studio~» en anglais (template Framer)
+  \item Blog : articles IA/automation en anglais, peu alignés avec l'offre FR marketing
+  \item Numéros de téléphone placeholder (+1 555...) présents dans certaines métadonnées
+\end{itemize}
+
+\section{Fonctionnalités admin à venir (suggérées)}
+
+\begin{enumerate}[leftmargin=*]
+  \item Inbox messages contact avec changement de statut
+  \item Pipeline projets / clients par activité
+  \item Connexion CRM ou facturation réelle
+  \item Calendrier éditorial réseaux sociaux
+  \item Monitoring uptime des sites clients
+  \item Brancher le formulaire contact Framer $\rightarrow$ Supabase
+\end{enumerate}
+
+\section{Points techniques}
+
+\begin{itemize}[leftmargin=*]
+  \item Pas de \texttt{content/index.html} : accueil EN à \texttt{/} potentiellement absent ; accueil FR sur \texttt{/fr}
+  \item Middleware Next.js 16 : convention \texttt{middleware} dépréciée (migration \texttt{proxy} recommandée)
+  \item Admin users : mots de passe en clair dans \texttt{.env.local} (acceptable en local, à remplacer en prod)
+\end{itemize}
+
+%==============================================================================
+\chapter{Annexe — Arborescence des routes Next.js (App Router)}
+%==============================================================================
+
+\begin{verbatim}
+app/
+  layout.tsx                    # Layout racine (html lang=fr)
+  [[...slug]]/route.ts          # Site Framer (toutes pages publiques)
+  api/framercms/[...file]/route.ts
+  admin/
+    layout.tsx                  # Import admin.css
+    login/
+      page.tsx                  # Page connexion
+      login-form.tsx            # Formulaire shadcn
+      actions.ts                # Server action login/logout
+    (protected)/
+      layout.tsx                # AdminShell + auth check
+      page.tsx                  # Vue globale agence
+      dashboard/[dashboardId]/
+        page.tsx                # Dashboard par activite
+\end{verbatim}
+
+\vfill
+\begin{center}
+\small\textit{Fin du rapport — Projet wetarget / Target Agency}
+\end{center}
+
+\end{document}
