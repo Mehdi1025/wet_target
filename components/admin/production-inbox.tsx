@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   Building2,
   Calendar,
@@ -9,8 +9,17 @@ import {
   RefreshCw,
   User,
 } from "lucide-react";
+import { toast } from "sonner";
 
+import { createProjectFromCrmLead } from "@/lib/actions/projects";
+import {
+  isBudgetBalanced,
+  toServiceBudgetAllocations,
+  formatCurrency,
+} from "@/lib/admin/budget-allocation";
 import type { CrmWonLead } from "@/lib/crm/types";
+import type { ServiceId } from "@/types/database";
+import { ServiceBudgetFields } from "@/components/admin/service-budget-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +30,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -30,11 +47,7 @@ import {
 import { cn } from "@/lib/utils";
 
 function formatAmount(amount: number) {
-  return amount.toLocaleString("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  });
+  return formatCurrency(amount);
 }
 
 function formatDate(value: string | null) {
@@ -53,9 +66,16 @@ function contactName(lead: CrmWonLead) {
 
 export function ProductionInbox() {
   const [leads, setLeads] = useState<CrmWonLead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<CrmWonLead | null>(null);
+  const [classifyLead, setClassifyLead] = useState<CrmWonLead | null>(null);
+  const [selectedServices, setSelectedServices] = useState<ServiceId[]>([]);
+  const [budgetShares, setBudgetShares] = useState<
+    Partial<Record<ServiceId, number>>
+  >({});
+  const [isPending, startTransition] = useTransition();
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -78,6 +98,7 @@ export function ProductionInbox() {
       setLeads([]);
     } finally {
       setLoading(false);
+      setInitialized(true);
     }
   }, []);
 
@@ -85,7 +106,71 @@ export function ProductionInbox() {
     void fetchLeads();
   }, [fetchLeads]);
 
+  function openClassifyDialog(lead: CrmWonLead) {
+    setClassifyLead(lead);
+    setSelectedServices([]);
+    setBudgetShares({});
+  }
+
+  function closeClassifyDialog() {
+    if (isPending) return;
+    setClassifyLead(null);
+    setSelectedServices([]);
+    setBudgetShares({});
+  }
+
+  function handleConfirmCreate() {
+    if (!classifyLead) return;
+
+    if (selectedServices.length === 0) {
+      toast.error("Sélectionnez au moins un pôle d'activité.");
+      return;
+    }
+
+    if (
+      !isBudgetBalanced(
+        classifyLead.deal_amount,
+        budgetShares,
+        selectedServices
+      )
+    ) {
+      toast.error("La ventilation doit être égale au budget total du projet.");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await createProjectFromCrmLead(
+        classifyLead,
+        toServiceBudgetAllocations(budgetShares, selectedServices)
+      );
+
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+
+      setSelected((current) =>
+        current?.id === classifyLead.id ? null : current
+      );
+      setClassifyLead(null);
+      setSelectedServices([]);
+      setBudgetShares({});
+      toast.success("Projet assigné avec succès");
+      await fetchLeads();
+    });
+  }
+
+  const canConfirmCreate =
+    classifyLead &&
+    selectedServices.length > 0 &&
+    isBudgetBalanced(
+      classifyLead.deal_amount,
+      budgetShares,
+      selectedServices
+    );
+
   const totalAmount = leads.reduce((sum, l) => sum + (l.deal_amount ?? 0), 0);
+  const showLoading = !initialized || loading;
 
   return (
     <div className="space-y-6">
@@ -150,7 +235,7 @@ export function ProductionInbox() {
         </Card>
       ) : null}
 
-      {loading ? (
+      {showLoading ? (
         <div className="grid gap-3">
           {[1, 2, 3].map((i) => (
             <div
@@ -201,7 +286,14 @@ export function ProductionInbox() {
                   <p className="text-xl font-bold tabular-nums">
                     {formatAmount(lead.deal_amount)}
                   </p>
-                  <Button variant="link" className="h-auto p-0 text-xs">
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelected(lead);
+                    }}
+                  >
                     Voir la fiche →
                   </Button>
                 </div>
@@ -267,14 +359,83 @@ export function ProductionInbox() {
                   </p>
                 ) : null}
 
-                <Button className="w-full" disabled>
-                  Créer un projet (bientôt)
+                <Button
+                  className="w-full"
+                  onClick={() => openClassifyDialog(selected)}
+                >
+                  Créer le projet
                 </Button>
               </div>
             </>
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={!!classifyLead}
+        onOpenChange={(open) => !open && closeClassifyDialog()}
+      >
+        <DialogContent className="sm:max-w-md">
+          {classifyLead ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  Classifier le projet : {classifyLead.entreprise}
+                </DialogTitle>
+                <DialogDescription>
+                  Sélectionnez les pôles d&apos;activité concernés par ce deal.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+                  <p className="font-medium">Budget signé</p>
+                  <p className="text-lg font-bold tabular-nums">
+                    {formatAmount(classifyLead.deal_amount)}
+                  </p>
+                  {classifyLead.notes ? (
+                    <div className="mt-3 border-t pt-3">
+                      <p className="mb-1 font-medium">Notes CRM</p>
+                      <p className="whitespace-pre-wrap text-muted-foreground">
+                        {classifyLead.notes}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-3 border-t pt-3 text-muted-foreground">
+                      Aucune note CRM.
+                    </p>
+                  )}
+                </div>
+
+                <ServiceBudgetFields
+                  totalBudget={classifyLead.deal_amount}
+                  selectedServices={selectedServices}
+                  budgetShares={budgetShares}
+                  onSelectedServicesChange={setSelectedServices}
+                  onBudgetSharesChange={setBudgetShares}
+                  disabled={isPending}
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={closeClassifyDialog}
+                  disabled={isPending}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleConfirmCreate}
+                  disabled={isPending || !canConfirmCreate}
+                >
+                  {isPending ? "Création…" : "Confirmer et Créer le projet"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

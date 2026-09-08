@@ -4,10 +4,6 @@ import Link from "next/link";
 import {
   Calendar,
   Download,
-  FolderKanban,
-  Mail,
-  Percent,
-  Wallet,
 } from "lucide-react";
 import {
   Cell,
@@ -17,14 +13,18 @@ import {
   Tooltip,
 } from "recharts";
 
-import {
-  AGENCY_GLOBAL_KPIS,
-  MONTHLY_REVENUE_TOTAL,
-  REVENUE_BY_ACTIVITY,
-} from "@/lib/admin/agency-overview-data";
+import { CfoVaultSection } from "@/components/admin/finance/cfo-vault-section";
+import { InternalHub } from "@/components/admin/arsenal/internal-hub";
+import { OperationalKpiGrid } from "@/components/admin/operational-kpi-grid";
+import { ProductionInbox } from "@/components/admin/production-inbox";
+import { REVENUE_BY_ACTIVITY } from "@/lib/admin/agency-overview-data";
+import type { FinancialBreakdown } from "@/lib/finance/calculator";
 import { AGENCY_DASHBOARDS, getDashboardPath } from "@/lib/admin/dashboards";
-import type { ContactStats } from "@/lib/supabase/contacts";
-import { KpiCard } from "@/components/admin/kpi-card";
+import type {
+  ArsenalDrawerWithLinks,
+  ArsenalLinkRow,
+} from "@/lib/supabase/arsenal";
+import type { OperationalStats } from "@/lib/supabase/operational-stats";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,31 +33,22 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type AgencyOverviewProps = {
-  contactStats: ContactStats;
-  supabaseConnected: boolean;
+  operationalStats: OperationalStats;
+  financeBreakdown: FinancialBreakdown;
+  arsenalDrawers: ArsenalDrawerWithLinks[];
+  arsenalPreviewLinks: (ArsenalLinkRow & { drawerTitle: string })[];
 };
 
 export function AgencyOverview({
-  contactStats,
-  supabaseConnected,
+  operationalStats,
+  financeBreakdown,
+  arsenalDrawers,
+  arsenalPreviewLinks,
 }: AgencyOverviewProps) {
-  const conversionDisplay =
-    contactStats.conversionRate !== null
-      ? `${contactStats.conversionRate}%`
-      : "—";
-
-  const leadsDisplay = supabaseConnected
-    ? String(contactStats.total)
-    : "—";
-
-  const conversionPositive =
-    contactStats.conversionRate !== null
-      ? contactStats.conversionRate >= 15
-      : true;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -95,56 +86,36 @@ export function AgencyOverview({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-0 space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <KpiCard
-              title="CA total du mois"
-              icon={Wallet}
-              value={MONTHLY_REVENUE_TOTAL.toLocaleString("fr-FR", {
-                style: "currency",
-                currency: "EUR",
-                maximumFractionDigits: 0,
-              })}
-              change={AGENCY_GLOBAL_KPIS.revenueGrowth}
-              positive
-              sparkData={AGENCY_GLOBAL_KPIS.sparkRevenue}
-            />
-            <KpiCard
-              title="Projets en cours"
-              icon={FolderKanban}
-              value={String(AGENCY_GLOBAL_KPIS.projectsInProgress)}
-              change={AGENCY_GLOBAL_KPIS.projectsGrowth}
-              positive
-              sparkData={AGENCY_GLOBAL_KPIS.sparkProjects}
-            />
-            <KpiCard
-              title="Leads contact"
-              icon={Mail}
-              value={leadsDisplay}
-              change={
-                supabaseConnected
-                  ? `${contactStats.new} nouveau(x)`
-                  : "Hors ligne"
-              }
-              positive={supabaseConnected}
-              sparkData={AGENCY_GLOBAL_KPIS.sparkLeads}
-            />
-            <KpiCard
-              title="Conversion lead → client"
-              icon={Percent}
-              value={conversionDisplay}
-              change={AGENCY_GLOBAL_KPIS.conversionGrowth}
-              positive={conversionPositive}
-              sparkData={AGENCY_GLOBAL_KPIS.sparkConversion}
-            />
-          </div>
+        <TabsContent value="overview" className="mt-0 space-y-6">
+          <OperationalKpiGrid
+            stats={operationalStats}
+            clientsKpiLabel="Clients de l'agence"
+          />
 
+          <ProductionInbox />
+
+          <InternalHub
+            drawers={arsenalDrawers}
+            previewLinks={arsenalPreviewLinks}
+            variant="preview"
+          />
+
+          <Separator className="my-10" />
+
+          <CfoVaultSection
+            breakdown={financeBreakdown}
+            scopeLabel="Tous les projets"
+            description="Cascade financière consolidée — tous pôles confondus"
+          />
+        </TabsContent>
+
+        <TabsContent value="activities">
           <div className="grid gap-4 lg:grid-cols-7">
             <Card className="col-span-4 shadow-sm">
               <CardHeader>
                 <CardTitle>Répartition du CA par activité</CardTitle>
                 <CardDescription>
-                  Part du chiffre d&apos;affaires mensuel par pôle
+                  Part du chiffre d&apos;affaires par pôle
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -254,62 +225,6 @@ export function AgencyOverview({
                 })}
               </CardContent>
             </Card>
-          </div>
-
-          {supabaseConnected ? (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Leads contact — Supabase</CardTitle>
-                <CardDescription>
-                  {contactStats.total} message(s) · {contactStats.new} non lu(s)
-                  · {contactStats.replied} traité(s)
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Le taux de conversion est calculé sur les leads marqués
-                &quot;Répondu&quot; ou &quot;Archivé&quot; sur le total des
-                messages reçus.
-              </CardContent>
-            </Card>
-          ) : null}
-        </TabsContent>
-
-        <TabsContent value="activities">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {AGENCY_DASHBOARDS.map((dashboard) => {
-              const revenue = REVENUE_BY_ACTIVITY.find(
-                (r) => r.id === dashboard.id
-              );
-              return (
-                <Card key={dashboard.id} className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      {dashboard.label}
-                    </CardTitle>
-                    <CardDescription>{dashboard.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold">
-                        {revenue?.amount.toLocaleString("fr-FR", {
-                          style: "currency",
-                          currency: "EUR",
-                          maximumFractionDigits: 0,
-                        })}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {revenue?.share}% du CA mensuel
-                      </p>
-                    </div>
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={getDashboardPath(dashboard.id)}>
-                        Ouvrir
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
           </div>
         </TabsContent>
       </Tabs>

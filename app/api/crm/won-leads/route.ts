@@ -1,32 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { verifyAdminSessionFromRequest } from "@/lib/admin/session";
+import { fetchPendingWonLeads } from "@/lib/crm/fetch-won-leads";
 import type { CrmWonLead } from "@/lib/crm/types";
 
 export type { CrmWonLead };
-
-function normalizeLeads(payload: unknown): CrmWonLead[] {
-  if (Array.isArray(payload)) {
-    return payload as CrmWonLead[];
-  }
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "leads" in payload &&
-    Array.isArray((payload as { leads: unknown }).leads)
-  ) {
-    return (payload as { leads: CrmWonLead[] }).leads;
-  }
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "data" in payload &&
-    Array.isArray((payload as { data: unknown }).data)
-  ) {
-    return (payload as { data: CrmWonLead[] }).data;
-  }
-  return [];
-}
 
 export async function GET(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);
@@ -48,29 +26,16 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      cache: "no-store",
-    });
+    const { leads, available } = await fetchPendingWonLeads();
 
-    if (!response.ok) {
-      const body = await response.text();
+    if (!available) {
       return NextResponse.json(
         {
-          error: `CRM Target OS a répondu ${response.status}`,
-          detail: body.slice(0, 500),
+          error: "Impossible de joindre Target OS",
         },
-        { status: response.status >= 500 ? 502 : response.status }
+        { status: 502 }
       );
     }
-
-    const payload: unknown = await response.json();
-    const leads = normalizeLeads(payload);
 
     return NextResponse.json({ leads });
   } catch (error) {

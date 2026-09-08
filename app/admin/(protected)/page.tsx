@@ -1,17 +1,25 @@
 import { AgencyOverview } from "@/components/admin/agency-overview";
-import { getContactStats } from "@/lib/supabase/contacts";
-import { getSupabaseHealth } from "@/lib/supabase/health";
+import { computeFinancialBreakdown } from "@/lib/finance/calculator";
+import { getArsenalDrawers, getArsenalPreviewLinks } from "@/lib/supabase/arsenal";
+import { getAgencyFinanceInputs } from "@/lib/supabase/finance-stats";
+import { getAgencyOperationalStats } from "@/lib/supabase/operational-stats";
 
 export default async function AdminIndexPage() {
-  const [health, contactStats] = await Promise.all([
-    getSupabaseHealth(),
-    getContactStats(),
+  const [financeInputs, operationalStats, arsenalDrawers] = await Promise.all([
+    getAgencyFinanceInputs(),
+    getAgencyOperationalStats(),
+    getArsenalDrawers(),
   ]);
+
+  const financeBreakdown = computeFinancialBreakdown(financeInputs);
+  const arsenalPreviewLinks = getArsenalPreviewLinks(arsenalDrawers);
 
   return (
     <AgencyOverview
-      contactStats={contactStats}
-      supabaseConnected={health.connected}
+      operationalStats={operationalStats}
+      financeBreakdown={financeBreakdown}
+      arsenalDrawers={arsenalDrawers}
+      arsenalPreviewLinks={arsenalPreviewLinks}
     />
   );
 }

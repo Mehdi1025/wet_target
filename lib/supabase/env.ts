@@ -26,5 +26,9 @@ export function getSupabaseAnonKey(): string {
 }
 
 export function getSupabaseServiceRoleKey(): string | undefined {
-  return process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Prefer legacy JWT service_role when set — avoids intermittent PGRST303
+  // ("JWT issued at future") caused by gateway clock drift with sb_secret_ keys.
+  return (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY
+  );
 }

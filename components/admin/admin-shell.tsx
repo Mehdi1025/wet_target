@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   ChevronDown,
   ChevronRight,
+  Grid3X3,
   Inbox,
   LayoutDashboard,
   ListTodo,
@@ -14,9 +15,14 @@ import {
   Sun,
   Users,
   Webhook,
+  Zap,
 } from "lucide-react";
 
 import { logoutAction } from "@/app/admin/login/actions";
+import { ArsenalQuickAccess } from "@/components/admin/arsenal/arsenal-quick-access";
+import { useManualProjectLaunch } from "@/components/admin/projects/manual-project-launch-context";
+import { ManualProjectLaunchProvider } from "@/components/admin/projects/manual-project-launch-context";
+import type { ClientPickerOption } from "@/lib/supabase/clients";
 import {
   AGENCY_DASHBOARDS,
   getDashboardPath,
@@ -42,6 +48,7 @@ import { Button } from "@/components/ui/button";
 type AppSidebarProps = {
   username: string;
   collapsed?: boolean;
+  openTaskCount?: number;
 };
 
 function NavItem({
@@ -49,11 +56,13 @@ function NavItem({
   icon: Icon,
   label,
   active,
+  badge,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   active?: boolean;
+  badge?: number;
 }) {
   return (
     <Link
@@ -64,12 +73,21 @@ function NavItem({
       )}
     >
       <Icon className="h-4 w-4 shrink-0 opacity-70" />
-      {label}
+      <span className="flex-1">{label}</span>
+      {badge !== undefined && badge > 0 ? (
+        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary">
+          {badge}
+        </span>
+      ) : null}
     </Link>
   );
 }
 
-export function AppSidebar({ username, collapsed }: AppSidebarProps) {
+export function AppSidebar({
+  username,
+  collapsed,
+  openTaskCount = 0,
+}: AppSidebarProps) {
   const pathname = usePathname();
   const initials = username.slice(0, 2).toUpperCase();
   const dashboardOpen =
@@ -79,7 +97,7 @@ export function AppSidebar({ username, collapsed }: AppSidebarProps) {
   if (collapsed) return null;
 
   return (
-    <aside className="flex h-screen w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 flex-col justify-center border-b border-sidebar-border px-4">
         <Link href="/admin" className="font-semibold tracking-tight">
           Target Agency
@@ -99,6 +117,12 @@ export function AppSidebar({ username, collapsed }: AppSidebarProps) {
             icon={Inbox}
             label="Inbox Production"
             active={pathname === "/admin/inbox"}
+          />
+          <NavItem
+            href="/admin/arsenal"
+            icon={Grid3X3}
+            label="Arsenal"
+            active={pathname === "/admin/arsenal"}
           />
 
           <Collapsible defaultOpen={dashboardOpen}>
@@ -154,7 +178,13 @@ export function AppSidebar({ username, collapsed }: AppSidebarProps) {
             </CollapsibleContent>
           </Collapsible>
 
-          <NavItem href="/admin" icon={ListTodo} label="Tâches" />
+          <NavItem
+            href="/admin/tasks"
+            icon={ListTodo}
+            label="Tâches"
+            active={pathname === "/admin/tasks"}
+            badge={openTaskCount}
+          />
           <NavItem href="/admin" icon={Users} label="Utilisateurs" />
         </div>
 
@@ -204,37 +234,64 @@ export function AppSidebar({ username, collapsed }: AppSidebarProps) {
   );
 }
 
+function AdminTopBar() {
+  const { openManualProjectSheet } = useManualProjectLaunch();
+
+  return (
+    <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+        <PanelLeft className="h-4 w-4" />
+      </Button>
+      <div className="relative mx-auto hidden w-full max-w-md md:block">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Rechercher..."
+          className="h-9 bg-muted/50 pl-9"
+        />
+        <kbd className="pointer-events-none absolute right-2 top-2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+          ⌘ K
+        </kbd>
+      </div>
+      <div className="ml-auto flex items-center gap-1">
+        <ArsenalQuickAccess />
+        <Button
+          size="sm"
+          className="h-9 shrink-0 gap-2 bg-amber-500 text-amber-950 hover:bg-amber-400"
+          onClick={() => openManualProjectSheet()}
+        >
+          <Zap className="h-4 w-4" />
+          Nouveau Projet
+        </Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+          <Sun className="h-4 w-4" />
+        </Button>
+      </div>
+    </header>
+  );
+}
+
 export function AdminShell({
   username,
+  clients,
+  openTaskCount = 0,
   children,
 }: {
   username: string;
+  clients: ClientPickerOption[];
+  openTaskCount?: number;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar username={username} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-            <PanelLeft className="h-4 w-4" />
-          </Button>
-          <div className="relative mx-auto hidden w-full max-w-md md:block">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher..."
-              className="h-9 bg-muted/50 pl-9"
-            />
-            <kbd className="pointer-events-none absolute right-2 top-2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-              ⌘ K
-            </kbd>
-          </div>
-          <Button variant="ghost" size="icon" className="ml-auto h-8 w-8">
-            <Sun className="h-4 w-4" />
-          </Button>
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+    <ManualProjectLaunchProvider clients={clients}>
+      <div className="flex h-screen overflow-hidden">
+        <AppSidebar username={username} openTaskCount={openTaskCount} />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <AdminTopBar />
+          <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </ManualProjectLaunchProvider>
   );
 }
