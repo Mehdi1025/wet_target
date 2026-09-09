@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import { NextRequest } from "next/server";
 import { getAllPageSlugs } from "@/lib/collect-slugs";
+import { injectSiteScripts } from "@/lib/inject-site-scripts";
 import { resolveHtmlPath } from "@/lib/resolve-html-path";
 
 export const runtime = "nodejs";
@@ -13,7 +14,8 @@ export async function generateStaticParams() {
 
 async function serveHtml(slug: string[] | undefined) {
   const { filePath, is404 } = await resolveHtmlPath(slug);
-  const html = await readFile(filePath, "utf-8");
+  const rawHtml = await readFile(filePath, "utf-8");
+  const html = injectSiteScripts(rawHtml, filePath);
 
   return new Response(html, {
     status: is404 ? 404 : 200,
